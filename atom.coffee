@@ -1,5 +1,5 @@
 module.exports = atom = {}
-atom.input = {
+atom.input =
   _bindings: {}
   _down: {}
   _pressed: {}
@@ -47,7 +47,6 @@ atom.input = {
     if @_bindings[atom.button.RIGHT]
       e.stopPropagation()
       e.preventDefault()
-}
 
 document.onkeydown = atom.input.onkeydown.bind(atom.input)
 document.onkeyup = atom.input.onkeyup.bind(atom.input)
@@ -121,7 +120,7 @@ class Game
     now = Date.now()
     dt = now - @last_step
     @last_step = now
-    @update(dt)
+    @update dt/1000
     @draw()
     atom.input.clearPressed()
 atom.Game = Game

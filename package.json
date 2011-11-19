@@ -12,7 +12,8 @@
   "dependencies": {
     "browserify": "*",
     "express": "*",
-    "sockjs": "*"
+    "sockjs": "*",
+    "hat": "*"
   },
   "devDependencies": {}
 }
