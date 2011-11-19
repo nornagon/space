@@ -147,7 +147,6 @@ drawTex = (tex, x, y, w, h) ->
         -1+2*x/atom.width,     1-2*(y+h)/atom.height # bl
         -1+2*(x+w)/atom.width, 1-2*y/atom.height     # tr
         -1+2*(x+w)/atom.width, 1-2*(y+h)/atom.height]# br
-  vs = [-1,1, -1,-1, 1,1, 1,-1]
   tcs = [0,tex.maxT, 0,0, tex.maxS,tex.maxT, tex.maxS,0]
   gl.bindBuffer gl.ARRAY_BUFFER, _drawTexVerts
   gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW
@@ -185,6 +184,45 @@ drawRect = (r, g, b, a) ->
     0, 0, 1
   ]
   gl.drawArrays gl.TRIANGLE_STRIP, 0, 4
+
+class MatrixStack
+  constructor: ->
+    @matrix = [1,0,0, 0,1,0, 0,0,1]
+    @stack = []
+  push: ->
+    @stack.push @matrix
+  pop: ->
+    return unless @stack.length > 0
+    @matrix = @stack.pop()
+  mult: (b) ->
+    a = @matrix
+    @matrix = new Array(9)
+    for r in [0...3]
+      for c in [0...3]
+        @matrix[3*r+c] = b[3*r+0]*a[0+c] +
+                         b[3*r+1]*a[3+c] +
+                         b[3*r+2]*a[6+c]
+    return
+  translate: (x, y) ->
+    @mult [
+      1,0,0
+      0,1,0
+      x,y,1
+    ]
+  rotate: (phi) ->
+    c = Math.cos phi
+    s = Math.sin phi
+    @mult [
+      c,s,0
+     -s,c,0
+      0,0,1
+    ]
+  scale: (sx, sy) ->
+    @mult [
+      sx,0,0
+      0,sy,0
+      0,0,1
+    ]
 
 class SpaceGame extends atom.Game
   constructor: ->
@@ -232,7 +270,10 @@ class SpaceGame extends atom.Game
     gl.bindFramebuffer gl.FRAMEBUFFER, @frontFB
     gl.clearColor 0, 0, 0, 1
     gl.clear gl.COLOR_BUFFER_BIT
-    drawTex @backFB.tex, 0, 0, atom.width, atom.height
+    if @last_draw_centre
+      dx = @last_draw_centre.x - player.x
+      dy = @last_draw_centre.y - player.y
+      drawTex @backFB.tex, dx, dy, atom.width, atom.height
     # TODO: darken
     w = 2 / atom.canvas.width
     h = -2 / atom.canvas.height
@@ -240,16 +281,14 @@ class SpaceGame extends atom.Game
       w, 0, 0, 0
       0, h, 0, 0
       0, 0, 1, 1
-      -1, 1, 0, 1
+      0, 0, 0, 1
     ]
-    shader.regular.setUniform 'world', [
-      1, 0, 0
-      0, 1, 0
-      0, 0, 1
-    ]
+    @worldMatrix = new MatrixStack
+    @worldMatrix.translate -player.x, -player.y
     e.draw?() for e in @entities
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     drawTex @frontFB.tex, 0, 0, atom.width, atom.height
+    @last_draw_centre = { x:player.x, y:player.y }
     tmp = @backFB
     @backFB = @frontFB
     @frontFB = tmp
@@ -268,6 +307,8 @@ class PhysicalEntity extends Entity
   update: (dt) ->
     @x += @vx * dt
     @y += @vy * dt
+    @vx *= 0.95
+    @vy *= 0.95
 
 class Ship extends PhysicalEntity
   constructor: (x, y) ->
@@ -286,13 +327,11 @@ class Ship extends PhysicalEntity
     gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
     gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
     gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
-    c = Math.cos @angle
-    s = Math.sin -@angle
-    shader.regular.setUniform 'world', [
-      c, -s, 0
-      s, c, 0
-      @x, @y, 1
-    ]
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    game.worldMatrix.rotate @angle
+    shader.regular.setUniform 'world', game.worldMatrix.matrix
+    game.worldMatrix.pop()
     gl.lineWidth 2
     gl.drawArrays gl.LINE_STRIP, 0, 4
 
@@ -300,41 +339,43 @@ class PlayerShip extends Ship
   constructor: (x, y) ->
     super x, y
   update: (dt) ->
-    dx = atom.input.mouse.x - @x
-    dy = atom.input.mouse.y - @y
+    dx = atom.input.mouse.x - atom.width/2
+    dy = atom.input.mouse.y - atom.height/2
     @angle = Math.atan2(dy, dx) - TAU/4
     if atom.input.down 'forward'
       @vx += -Math.sin(@angle) * dt * 0.001
       @vy += Math.cos(@angle) * dt * 0.001
     super(dt)
 
-class Test extends Entity
-  constructor: ->
-    super()
-    vertices = [0,0, 1,0, 0,1, 1,1]
+class Box extends PhysicalEntity
+  constructor: (x,y) ->
+    super x, y
+    vertices = [-5,-5, -5,5, 5,5, 5,-5]
     @vertexBuf = gl.createBuffer()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
     gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW
-    colors = [1,0,0,1, 1,0,0,1, 1,0,0,1, 1,0,0,1]
+    colors = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1]
     @colorBuf = gl.createBuffer()
     gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
     gl.bufferData gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW
   draw: ->
+    shader.regular.use()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexPosition, 2, gl.FLOAT, false, 0, 0
+    gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
     gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexColor, 4, gl.FLOAT, false, 0, 0
-    shader.regular.setUniform 'world', [
-      1, 0, 0
-      0, 1, 0
-      0, 0, 1
-    ]
+    gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    game.worldMatrix.rotate @angle
+    shader.regular.setUniform 'world', game.worldMatrix.matrix
+    game.worldMatrix.pop()
     gl.lineWidth 2
-    gl.drawArrays gl.LINE_STRIP, 0, 4
+    gl.drawArrays gl.LINE_LOOP, 0, 4
 
 window.game = game = new SpaceGame
 
 player = new PlayerShip atom.canvas.width / 2, atom.canvas.height / 2
+new Box atom.canvas.width / 2, atom.canvas.height / 2
 
 #new Test
 
