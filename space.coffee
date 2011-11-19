@@ -1,3 +1,6 @@
+atom = require './atom'
+console.warn atom
+
 TAU = Math.PI*2
 
 class SpaceGame extends atom.Game
@@ -81,7 +84,7 @@ class PlayerShip extends Ship
       @vy += Math.cos(@angle) * dt * 0.001
     super(dt)
 
-window.game = game = new SpaceGame
+window?.game = game = new SpaceGame
 
 player = new PlayerShip atom.canvas.width / 2, atom.canvas.height / 2
 

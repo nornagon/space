@@ -1,0 +1,18 @@
+{
+  "author": "Joseph Gentle <josephg@gmail.com> (josephg.com)",
+  "name": "space",
+  "description": "Space game",
+  "version": "0.0.0",
+  "repository": {
+    "url": ""
+  },
+  "engines": {
+    "node": "~0.4.12"
+  },
+  "dependencies": {
+    "browserify": "*",
+    "express": "*",
+    "sockjs": "*"
+  },
+  "devDependencies": {}
+}

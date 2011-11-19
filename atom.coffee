@@ -1,4 +1,4 @@
-window.atom = atom = {}
+module.exports = atom = {}
 atom.input = {
   _bindings: {}
   _down: {}
