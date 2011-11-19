@@ -89,7 +89,7 @@ atom.canvas = document.getElementsByTagName('canvas')[0]
 atom.canvas.style.position = "absolute"
 atom.canvas.style.top = "0"
 atom.canvas.style.left = "0"
-atom.context = atom.canvas.getContext '2d'
+atom.gl = atom.canvas.getContext 'experimental-webgl'
 
 atom.canvas.onmousemove = atom.input.onmousemove.bind(atom.input)
 atom.canvas.onmousedown = atom.input.onmousedown.bind(atom.input)
@@ -102,6 +102,7 @@ window.onresize = (e) ->
   atom.canvas.height = window.innerHeight
   atom.width = atom.canvas.width
   atom.height = atom.canvas.height
+  atom.gl.viewport 0, 0, atom.width, atom.height
 window.onresize()
 
 class Game

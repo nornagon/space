@@ -1,13 +1,84 @@
 TAU = Math.PI*2
 
+gl = atom.gl
+
+vertexShaderSource = '''
+attribute vec2 vertexPosition;
+attribute vec4 vertexColor;
+varying vec4 varColor;
+
+uniform mat3 world;
+uniform mat4 projection;
+
+void main(void) {
+  vec3 position = world * vec3(vertexPosition.x, vertexPosition.y, 1.0);
+  gl_Position = projection * vec4(position.x, position.y, 0.0, 1.0);
+  varColor = vertexColor;
+}
+'''
+
+fragmentShaderSource = '''
+#ifdef GL_ES
+precision highp float;
+#endif
+
+varying vec4 varColor;
+
+void main() {
+  gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+}
+'''
+
+class Shader
+  constructor: (vsSource, fsSource) ->
+    @vs = gl.createShader gl.VERTEX_SHADER
+    gl.shaderSource @vs, vsSource
+    gl.compileShader @vs
+
+    unless gl.getShaderParameter @vs, gl.COMPILE_STATUS
+      throw 'vertex shader error: ' + gl.getShaderInfoLog @vs
+
+    @fs = gl.createShader gl.FRAGMENT_SHADER
+    gl.shaderSource @fs, fsSource
+    gl.compileShader @fs
+
+    unless gl.getShaderParameter @fs, gl.COMPILE_STATUS
+      throw 'fragment shader error: ' + gl.getShaderInfoLog @fs
+
+    @program = gl.createProgram()
+    gl.attachShader @program, @vs
+    gl.attachShader @program, @fs
+    gl.linkProgram @program
+
+    unless gl.getProgramParameter @program, gl.LINK_STATUS
+      throw 'link error: ' + gl.getProgramInfoLog @program
+
+    gl.useProgram @program
+    @vertexPosition = gl.getAttribLocation @program, 'vertexPosition'
+    gl.enableVertexAttribArray @vertexPosition
+    @vertexColor = gl.getAttribLocation @program, 'vertexColor'
+    gl.enableVertexAttribArray @vertexColor
+    @world = gl.getUniformLocation @program, 'world'
+    @projection = gl.getUniformLocation @program, 'projection'
+  use: ->
+    gl.useProgram @program
+  setWorld: (m) ->
+    @use()
+    gl.uniformMatrix3fv @world, false, new Float32Array(m)
+  setProjection: (m) ->
+    @use()
+    gl.uniformMatrix4fv @projection, false, new Float32Array(m)
+
+shader = {
+  regular: new Shader vertexShaderSource, fragmentShaderSource
+}
+
 class SpaceGame extends atom.Game
   constructor: ->
     super()
     @bind()
     @entities = []
     @deadEntityIDs = []
-    atom.context.fillStyle = 'black'
-    atom.context.fillRect 0, 0, atom.canvas.width, atom.canvas.height
 
   addEntity: (e) ->
     @entities.push e
@@ -30,10 +101,21 @@ class SpaceGame extends atom.Game
       for id in @deadEntityIDs
         @entities.splice id, 1
   draw: ->
-    ctx = atom.context
-    ctx.fillStyle = 'rgba(0,0,0,0.2)'
-    ctx.fillRect 0,0, atom.canvas.width, atom.canvas.height
-    data = ctx.getImageData(0, 0, atom.canvas.width, atom.canvas.height)
+    gl.clearColor 0, 0, 0, 1
+    gl.clear gl.COLOR_BUFFER_BIT
+    w = 2 / atom.canvas.width
+    h = -2 / atom.canvas.height
+    shader.regular.setProjection [
+      w, 0, 0, 0
+      0, h, 0, 0
+      0, 0, 1, 1
+      -1, 1, 0, 1
+    ]
+    shader.regular.setWorld [
+      1, 0, 0
+      0, 1, 0
+      0, 0, 1
+    ]
     e.draw?() for e in @entities
 
 class Entity
@@ -54,20 +136,27 @@ class PhysicalEntity extends Entity
 class Ship extends PhysicalEntity
   constructor: (x, y) ->
     super(x, y)
+    vertices = [-5,0, 5,0, 0,10, -5,0]
+    @vertexBuf = gl.createBuffer()
+    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW
+    colors = [1,0,0,1, 1,0,0,1, 1,0,0,1, 1,0,0,1]
+    @colorBuf = gl.createBuffer()
+    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW
   draw: ->
-    ctx = atom.context
-    ctx.strokeStyle = 'rgb(230,0,0)'
-    ctx.lineWidth = 2
-    ctx.save()
-    ctx.translate @x, @y
-    ctx.rotate @angle
-    ctx.beginPath()
-    ctx.moveTo -10, -10
-    ctx.lineTo 0, 10
-    ctx.lineTo 10, -10
-    ctx.closePath()
-    ctx.stroke()
-    ctx.restore()
+    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
+    gl.vertexAttribPointer shader.regular.vertexPosition, 2, gl.FLOAT, false, 0, 0
+    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
+    gl.vertexAttribPointer shader.regular.vertexColor, 4, gl.FLOAT, false, 0, 0
+    c = Math.cos @angle
+    s = Math.sin -@angle
+    shader.regular.setWorld [
+      c, -s, 0
+      s, c, 0
+      @x, @y, 1
+    ]
+    gl.drawArrays gl.LINE_STRIP, 0, 4
 
 class PlayerShip extends Ship
   constructor: (x, y) ->
