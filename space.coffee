@@ -293,6 +293,31 @@ class SpaceGame extends atom.Game
     @backFB = @frontFB
     @frontFB = tmp
 
+class StaticShape
+  constructor: (verts) ->
+    vertices = []
+    colors = []
+    for v in verts
+      vertices = vertices.concat v[0..1]
+      colors = colors.concat v[2..5]
+    @numElements = vertices.length / 2
+    @vertexBuf = gl.createBuffer()
+    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW
+    @colorBuf = gl.createBuffer()
+    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
+    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW
+    @lineWidth = 2
+
+  draw: ->
+    shader.regular.use()
+    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
+    gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
+    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
+    gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
+    gl.lineWidth @lineWidth
+    gl.drawArrays gl.LINE_STRIP, 0, @numElements
+
 class Entity
   constructor: ->
     game.addEntity this
@@ -313,27 +338,19 @@ class PhysicalEntity extends Entity
 class Ship extends PhysicalEntity
   constructor: (x, y) ->
     super(x, y)
-    vertices = [-10,0, 10,0, 0,20, -10,0]
-    @vertexBuf = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW
-    colors = [1,0,0,1, 1,0,0,1, 1,0,0,1, 1,0,0,1]
-    @colorBuf = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW
+    @shape = new StaticShape [
+      [-10,0, 1,0,0,1]
+      [10,0,  1,0,0,1]
+      [0,20,  1,0,0,1]
+      [-10,0, 1,0,0,1]
+    ]
   draw: ->
-    shader.regular.use()
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
-    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y
     game.worldMatrix.rotate @angle
     shader.regular.setUniform 'world', game.worldMatrix.matrix
     game.worldMatrix.pop()
-    gl.lineWidth 2
-    gl.drawArrays gl.LINE_STRIP, 0, 4
+    @shape.draw()
 
 class PlayerShip extends Ship
   constructor: (x, y) ->
@@ -351,33 +368,27 @@ class Box extends PhysicalEntity
   constructor: (x,y) ->
     super x, y
     vertices = [-5,-5, -5,5, 5,5, 5,-5]
-    @vertexBuf = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW
     colors = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1]
-    @colorBuf = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW
+    @shape = new StaticShape [
+      [-5,-5, 0,1,0,1]
+      [-5, 5, 0,1,0,1]
+      [ 5, 5, 0,1,0,1]
+      [ 5,-5, 0,1,0,1]
+      [-5,-5, 0,1,0,1]
+    ]
+
   draw: ->
-    shader.regular.use()
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
-    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y
     game.worldMatrix.rotate @angle
     shader.regular.setUniform 'world', game.worldMatrix.matrix
     game.worldMatrix.pop()
-    gl.lineWidth 2
-    gl.drawArrays gl.LINE_LOOP, 0, 4
+    @shape.draw()
 
 window.game = game = new SpaceGame
 
-player = new PlayerShip atom.canvas.width / 2, atom.canvas.height / 2
-new Box atom.canvas.width / 2, atom.canvas.height / 2
-
-#new Test
+player = new PlayerShip 0, 0
+new Box 0, 0
 
 window.onblur = game.stop()
 window.onfocus = game.run()
