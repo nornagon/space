@@ -117,7 +117,7 @@ class Gradient
   shader.gradient.setUniform 'gradientTex', 0
   vertexBuf = gl.createBuffer()
   gl.bindBuffer gl.ARRAY_BUFFER, vertexBuf
-  gl.bufferData gl.ARRAY_BUFFER, new Float32Array([0,0, 0,1, 1,0, 1,1]), gl.STATIC_DRAW
+  gl.bufferData gl.ARRAY_BUFFER, new Float32Array([-1,-1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW
   gl.vertexAttribPointer shader.gradient.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
 
   mat = new MatrixStack
@@ -142,10 +142,11 @@ class Gradient
     gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE
     gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE
     @length = size / canvas.width
-  draw: (x, y, size) ->
+  draw: (x, y, width, height=width, angle=null) ->
     mat.push()
-    mat.translate(x-size/2,y-size/2)
-    mat.scale(size, size)
+    mat.translate(x,y)
+    mat.rotate angle if angle?
+    mat.scale(width/2, height/2)
     shader.gradient.setUniform 'world', mat.matrix
     mat.pop()
     shader.gradient.setUniform 'length', @length
@@ -259,12 +260,15 @@ class StaticShape
     gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
     gl.lineWidth @lineWidth
     gl.drawArrays gl.LINE_STRIP, 0, @numElements
+  destroy: ->
+    gl.deleteBuffer @vertexBuf
+    gl.deleteBuffer @colorBuf
 
 class Entity
   constructor: (@x, @y) ->
     game.addEntity this
     @vx = @vy = 0
-    @angle = 0
+    @angle ?= 0
 
   destroy: ->
     game.removeEntity this
@@ -274,6 +278,24 @@ class Entity
     @y += @vy * dt
     @vx *= 0.95
     @vy *= 0.95
+
+turnTo = (angle, targetAngle, speed) ->
+  diff = targetAngle - angle
+  diff -= TAU while diff > TAU/2
+  diff += TAU while diff < -TAU/2
+  if diff > 0
+    # turn ccw
+    if diff < speed
+      angle = targetAngle
+    else
+      angle += speed
+  else
+    # turn cw
+    if -diff < speed
+      angle = targetAngle
+    else
+      angle -= speed
+  angle
 
 class Ship extends Entity
   constructor: (x, y) ->
@@ -288,21 +310,7 @@ class Ship extends Entity
 
   update: (dt) ->
     if @targetAngle
-      diff = @targetAngle - @angle
-      diff -= TAU while diff > TAU/2
-      diff += TAU while diff < -TAU/2
-      if diff > 0
-        # turn ccw
-        if diff < @turnSpeed
-          @angle = @targetAngle
-        else
-          @angle += @turnSpeed
-      else
-        # turn cw
-        if -diff < @turnSpeed
-          @angle = @targetAngle
-        else
-          @angle -= @turnSpeed
+      @angle = turnTo @angle, @targetAngle, @turnSpeed
     super(dt)
   draw: ->
     game.worldMatrix.push()
@@ -322,15 +330,15 @@ class PlayerShip extends Ship
     dy = atom.input.mouse.y - atom.height/2
     @targetAngle = Math.atan2(dy, dx) - TAU/4
     if atom.input.down 'forward'
-      @vx += -Math.sin(@angle) * dt * 500
-      @vy += Math.cos(@angle) * dt * 500
+      @vx += -Math.sin(@angle) * dt * 100
+      @vy += Math.cos(@angle) * dt * 100
 
     if @shotTime > 0
       @shotTime -= dt
     if atom.input.down 'shoot'
       if @shotTime <= 0
         @shoot x:@x+dx, y: @y+dy
-        @shotTime = 0.3
+        @shotTime = Math.random() * 0.1
     super(dt)
   shoot: (target) ->
     new Bullet @x, @y, target
@@ -343,8 +351,8 @@ class EnemyShip extends Ship
     dx = player.x - @x
     dy = player.y - @y
     @targetAngle = Math.atan2(dy, dx) - TAU/4
-    @vx += -Math.sin(@angle) * dt * 300
-    @vy += Math.cos(@angle) * dt * 300
+    @vx += -Math.sin(@angle) * dt * 50
+    @vy += Math.cos(@angle) * dt * 50
     super(dt)
 
 class Box extends Entity
@@ -396,25 +404,68 @@ class Explosion extends Entity
     @gradient.destroy()
     super()
 
+class Shockwave extends Entity
+  constructor: (x, y, @angle) ->
+    super x, y
+    @gradient = new Gradient [
+      [0, 'rgba(212,103,113,0.025)']
+      [0.6, 'rgba(212,103,113,0.035)']
+      [0.8, 'rgba(212,103,113,0.075)']
+      [1.0, 'rgba(212,103,113,0.0)']
+    ]
+    @size = 30
+  destroy: ->
+    @gradient.destroy()
+    new Explosion @x, @y
+    super()
+  update: (dt) ->
+    @size += dt * 60
+    if @size > 50
+      @destroy()
+    c = Math.cos @angle
+    s = Math.sin @angle
+    @vx = c*30
+    @vy = s*30
+    super dt
+  draw: ->
+    size = @size
+    @gradient.draw @x-player.x, @y-player.y, size, size/4, @angle+TAU/4
+
 class Bullet extends Entity
   constructor: (x, y, @target) ->
     super x, y
     @angle = Math.atan2 @target.y-y, @target.x-x
+    @angle += TAU/4 * if Math.random() < 0.5 then -1 else 1
+    @turnSpeed = 0.1 + Math.random() * 0.1
     @shape = new StaticShape [
       [0,0, 1,0.57,0,1]
       [1,0, 1,0.57,0,1]
     ]
+    @shape.lineWidth = 1
+    @life = 4
   update: (dt) ->
     dx = @target.x - @x
     dy = @target.y - @y
+    targetAngle = Math.atan2 dy, dx
+    @angle = turnTo @angle, targetAngle, @turnSpeed
     dist = Math.sqrt dx*dx+dy*dy
-    if dist < 100*dt
-      @destroy()
-      new Explosion @x, @y
+    @life -= dt
+    if dist < 100*dt or @life < 0
+      @explode()
     else
-      @vx = dx/dist*100
-      @vy = dy/dist*100
+      c = Math.cos @angle
+      s = Math.sin @angle
+      @vx = c*100
+      @vy = s*100
     super dt
+
+  destroy: ->
+    @shape.destroy()
+    super()
+  explode: ->
+    @destroy()
+    new Shockwave @x, @y, @angle
+
   draw: ->
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y

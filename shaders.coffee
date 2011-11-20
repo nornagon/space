@@ -76,9 +76,9 @@ uniform float length; // in texture coordinates [0,1]
 varying vec2 fragmentPosition;
 
 float distanceFromCentre(vec2 a) {
-  float dx = a.x-0.5;
-  float dy = a.y-0.5;
-  return sqrt(dx*dx + dy*dy)*2.0;
+  float dx = a.x;
+  float dy = a.y;
+  return sqrt(dx*dx + dy*dy);
 }
 
 void main(void) {
