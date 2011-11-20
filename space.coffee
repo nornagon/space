@@ -171,11 +171,13 @@ class SpaceGame extends atom.Game
     gl.clear gl.COLOR_BUFFER_BIT
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     gl.enable gl.BLEND
-    gl.blendFunc gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA
+    gl.blendFunc gl.SRC_ALPHA, gl.ONE
     @g = new Gradient [
-      [0, 'blue']
-      [1, 'rgba(255,0,0,0)']
+      [0, 'rgba(190,105,90,1)']
+      [0.25, 'rgba(5,30,80,0.4)']
+      [1, 'rgba(10,0,40,0)']
     ]
+    @g.dt = 0
 
   addEntity: (e) ->
     @entities.push e
@@ -197,6 +199,7 @@ class SpaceGame extends atom.Game
       @deadEntityIDs.sort_by (a, b) -> b - a
       for id in @deadEntityIDs
         @entities.splice id, 1
+    @g.dt += dt
   draw: ->
     # clear new
     # draw old to new in offset pos
@@ -228,7 +231,10 @@ class SpaceGame extends atom.Game
     @worldMatrix = new MatrixStack
     @worldMatrix.translate -player.x, -player.y
     e.draw?() for e in @entities
-    @g.draw 100, 0, 50
+    d = Math.min 500, @g.dt % 1000
+    fac = 0.48 * 0.004 * Math.PI
+    size = 15 * (1 + Math.tan(d * fac))
+    @g.draw 100, 0, size
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     drawTex @frontFB.tex, 0, 0, atom.width, atom.height
     @last_draw_centre = { x:player.x, y:player.y }
