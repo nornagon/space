@@ -292,12 +292,28 @@ class Ship extends Entity
     @shape.draw()
 
 class PlayerShip extends Ship
+  turn_speed = 0.1
   constructor: (x, y) ->
     super x, y
   update: (dt) ->
     dx = atom.input.mouse.x - atom.width/2
     dy = atom.input.mouse.y - atom.height/2
-    @angle = Math.atan2(dy, dx) - TAU/4
+    targetAngle = Math.atan2(dy, dx) - TAU/4
+    diff = targetAngle - @angle
+    diff -= TAU while diff > TAU/2
+    diff += TAU while diff < -TAU/2
+    if diff > 0
+      # turn ccw
+      if diff < turn_speed
+        @angle = targetAngle
+      else
+        @angle += turn_speed
+    else
+      # turn cw
+      if -diff < turn_speed
+        @angle = targetAngle
+      else
+        @angle -= turn_speed
     if atom.input.down 'forward'
       @vx += -Math.sin(@angle) * dt * 500
       @vy += Math.cos(@angle) * dt * 500
