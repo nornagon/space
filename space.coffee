@@ -436,10 +436,10 @@ class Bullet extends Entity
     super x, y
     @angle = Math.atan2 @target.y-y, @target.x-x
     @angle += TAU/4 * if Math.random() < 0.5 then -1 else 1
-    @turnSpeed = 0.1 + Math.random() * 0.1
+    @turnSpeed = 0.15 + Math.random() * 0.15
     @shape = new StaticShape [
-      [0,0, 1,0.57,0,1]
-      [1,0, 1,0.57,0,1]
+      [-0.5,0, 1,0.57,0,1]
+      [0.5,0, 1,0.57,0,1]
     ]
     @shape.lineWidth = 1
     @life = 4
@@ -450,13 +450,13 @@ class Bullet extends Entity
     @angle = turnTo @angle, targetAngle, @turnSpeed
     dist = Math.sqrt dx*dx+dy*dy
     @life -= dt
-    if dist < 100*dt or @life < 0
+    if dist < 200*dt or @life < 0
       @explode()
     else
       c = Math.cos @angle
       s = Math.sin @angle
-      @vx = c*100
-      @vy = s*100
+      @vx = c*200
+      @vy = s*200
     super dt
 
   destroy: ->
@@ -470,7 +470,7 @@ class Bullet extends Entity
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y
     game.worldMatrix.rotate @angle
-    game.worldMatrix.scale 5, 5
+    game.worldMatrix.scale 10, 10
     shader.regular.setUniform 'world', game.worldMatrix.matrix
     game.worldMatrix.pop()
     @shape.draw()
