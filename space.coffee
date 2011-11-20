@@ -260,23 +260,21 @@ class StaticShape
     gl.drawArrays gl.LINE_STRIP, 0, @numElements
 
 class Entity
-  constructor: ->
+  constructor: (@x, @y) ->
     game.addEntity this
+    @vx = @vy = 0
+    @angle = 0
+
   destroy: ->
     game.removeEntity this
 
-class PhysicalEntity extends Entity
-  constructor: (@x, @y) ->
-    @vx = @vy = 0
-    @angle = 0
-    super()
   update: (dt) ->
     @x += @vx * dt
     @y += @vy * dt
     @vx *= 0.95
     @vy *= 0.95
 
-class Ship extends PhysicalEntity
+class Ship extends Entity
   constructor: (x, y) ->
     super(x, y)
     @shape = new StaticShape [
@@ -305,7 +303,7 @@ class PlayerShip extends Ship
       @vy += Math.cos(@angle) * dt * 0.001
     super(dt)
 
-class Box extends PhysicalEntity
+class Box extends Entity
   constructor: (x,y) ->
     super x, y
     vertices = [-5,-5, -5,5, 5,5, 5,-5]
@@ -332,7 +330,7 @@ class Box extends PhysicalEntity
     game.worldMatrix.pop()
     @shape.draw()
 
-class Explosion extends PhysicalEntity
+class Explosion extends Entity
   constructor: (x, y) ->
     super x, y
     @gradient = new Gradient [
