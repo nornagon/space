@@ -47,7 +47,42 @@ varying vec2 texCoord;
 
 void main(void) {
   vec4 col = texture2D(tex, texCoord);
-  gl_FragColor = vec4(col.rgb, 0.8);
+  gl_FragColor = vec4(col.rgb*0.8, 1);
+}
+'''
+
+
+gradientVertexSource = '''
+attribute vec2 vertexPosition;
+uniform mat3 world;
+uniform mat4 projection;
+varying vec2 fragmentPosition;
+
+void main(void) {
+  vec3 pos = world * vec3(vertexPosition, 1);
+  gl_Position = projection * vec4(pos.xy, 0, 1);
+  fragmentPosition = vertexPosition;
+}
+'''
+gradientFragmentSource = '''
+#ifdef GL_ES
+precision highp float;
+#endif
+
+uniform sampler2D gradientTex; // 1xn
+uniform float length; // in texture coordinates [0,1]
+
+varying vec2 fragmentPosition;
+
+float distanceFromCentre(vec2 a) {
+  float dx = a.x-0.5;
+  float dy = a.y-0.5;
+  return sqrt(dx*dx + dy*dy)*2.0;
+}
+
+void main(void) {
+  float dist = distanceFromCentre(fragmentPosition);
+  gl_FragColor = texture2D(gradientTex, vec2(dist*length,0));
 }
 '''
 
@@ -77,7 +112,7 @@ class Shader
 
     gl.useProgram @program
 
-    re = /^(attribute|uniform)\s+(\S+?)\s+(\S+?);$/gm
+    re = /^(attribute|uniform)\s+(\S+?)\s+(\S+?);/gm
     @attribute = {}
     @uniform = {}
     for src in [vsSource, fsSource]
@@ -104,10 +139,13 @@ class Shader
         gl.uniformMatrix4fv u.location, false, new Float32Array(val)
       when 'sampler2D'
         gl.uniform1i u.location, val
+      when 'float'
+        gl.uniform1f u.location, val
       else
         throw "don't know how to set #{u.type}"
 
 window.shader = {
   regular: new Shader vertexShaderSource, fragmentShaderSource
   tex: new Shader texVertexSource, texFragmentSource
+  gradient: new Shader gradientVertexSource, gradientFragmentSource
 }

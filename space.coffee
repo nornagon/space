@@ -111,6 +111,51 @@ class MatrixStack
       0,0,1
     ]
 
+class Gradient
+  shader.gradient.use()
+  shader.gradient.setUniform 'gradientTex', 0
+  vertexBuf = gl.createBuffer()
+  gl.bindBuffer gl.ARRAY_BUFFER, vertexBuf
+  gl.bufferData gl.ARRAY_BUFFER, new Float32Array([0,0, 0,1, 1,0, 1,1]), gl.STATIC_DRAW
+  gl.vertexAttribPointer shader.gradient.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
+
+  mat = new MatrixStack
+
+  constructor: (stops, size=256) ->
+    canvas = document.createElement 'canvas'
+    document.body.appendChild canvas
+    canvas.style.position = 'absolute'
+    canvas.width = nextPOT size
+    canvas.height = 1
+    ctx = canvas.getContext '2d'
+    g = ctx.createLinearGradient 0, 0, size, 0
+    for s in stops
+      g.addColorStop s[0], s[1]
+    ctx.fillStyle = g
+    ctx.fillRect 0,0,canvas.width,1
+    data = ctx.getImageData 0, 0, canvas.width, 1
+    @tex = gl.createTexture()
+    gl.bindTexture gl.TEXTURE_2D, @tex
+    gl.texImage2D gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data
+    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR
+    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR
+    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE
+    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE
+    @length = size / canvas.width
+    console.log @length
+  draw: (x, y, size) ->
+    mat.push()
+    mat.translate(x-size/2,y-size/2)
+    mat.scale(size, size)
+    shader.gradient.setUniform 'world', mat.matrix
+    mat.pop()
+    shader.gradient.setUniform 'length', @length
+    gl.activeTexture 0
+    gl.bindTexture gl.TEXTURE_2D, @tex
+    gl.bindBuffer gl.ARRAY_BUFFER, vertexBuf
+    gl.vertexAttribPointer shader.gradient.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
+    gl.drawArrays gl.TRIANGLE_STRIP, 0, 4
+
 class SpaceGame extends atom.Game
   constructor: ->
     super()
@@ -126,7 +171,11 @@ class SpaceGame extends atom.Game
     gl.clear gl.COLOR_BUFFER_BIT
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     gl.enable gl.BLEND
-    gl.blendFunc gl.SRC_ALPHA, gl.ONE
+    gl.blendFunc gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA
+    @g = new Gradient [
+      [0, 'blue']
+      [1, 'rgba(255,0,0,0)']
+    ]
 
   addEntity: (e) ->
     @entities.push e
@@ -170,9 +219,16 @@ class SpaceGame extends atom.Game
       0, 0, 1, 1
       0, 0, 0, 1
     ]
+    shader.gradient.setUniform 'projection', [
+      w, 0, 0, 0
+      0, h, 0, 0
+      0, 0, 1, 1
+      0, 0, 0, 1
+    ]
     @worldMatrix = new MatrixStack
     @worldMatrix.translate -player.x, -player.y
     e.draw?() for e in @entities
+    @g.draw 100, 0, 50
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     drawTex @frontFB.tex, 0, 0, atom.width, atom.height
     @last_draw_centre = { x:player.x, y:player.y }
