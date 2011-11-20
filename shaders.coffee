@@ -42,12 +42,13 @@ texFragmentSource = '''
 precision highp float;
 #endif
 uniform sampler2D tex;
+uniform float mult;
 
 varying vec2 texCoord;
 
 void main(void) {
   vec4 col = texture2D(tex, texCoord);
-  gl_FragColor = vec4(col.rgb*0.8, 1);
+  gl_FragColor = vec4(col.rgb*mult, 1);
 }
 '''
 

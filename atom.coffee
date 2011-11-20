@@ -111,17 +111,20 @@ class Game
   update: (dt) ->
   draw: ->
   run: ->
+    return if @loop_interval
     @last_step = Date.now()
     @loop_interval = setInterval =>
       @step()
     , 1000/@fps
   stop: ->
+    console.log 'stop',@loop_interval
     clearInterval @loop_interval if @loop_interval?
     @loop_interval = null
   step: ->
     now = Date.now()
     dt = (now - @last_step) / 1000
     @last_step = now
+    console.log dt if dt > 0.04
     @update dt
     @draw()
     atom.input.clearPressed()

@@ -26,8 +26,9 @@ makeFB = (w, h) ->
 
 _drawTexVerts = gl.createBuffer()
 _drawTexTexCoords = gl.createBuffer()
-drawTex = (tex, x, y, w, h) ->
+drawTex = (tex, x, y, w, h, multiplier = 1.0) ->
   shader.tex.setUniform 'tex', 0
+  shader.tex.setUniform 'mult', multiplier
   gl.bindTexture gl.TEXTURE_2D, tex
   gl.activeTexture gl.TEXTURE0
   vs = [-1+2*x/atom.width,     1-2*y/atom.height     # tl
@@ -208,7 +209,7 @@ class SpaceGame extends atom.Game
     if @last_draw_centre
       dx = @last_draw_centre.x - player.x
       dy = @last_draw_centre.y - player.y
-      drawTex @backFB.tex, dx, dy, atom.width, atom.height
+      drawTex @backFB.tex, dx, dy, atom.width, atom.height, 0.8
     # TODO: darken
     w = 2 / atom.canvas.width
     h = -2 / atom.canvas.height
@@ -228,7 +229,7 @@ class SpaceGame extends atom.Game
     @worldMatrix.translate -player.x, -player.y
     e.draw?() for e in @entities
     gl.bindFramebuffer gl.FRAMEBUFFER, null
-    drawTex @frontFB.tex, 0, 0, atom.width, atom.height
+    drawTex @frontFB.tex, 0, 0, atom.width, atom.height, 1.0
     @last_draw_centre = { x:player.x, y:player.y }
     tmp = @backFB
     @backFB = @frontFB
@@ -283,7 +284,7 @@ class Ship extends Entity
       [0,20,  1,0,0,1]
       [-10,0, 1,0,0,1]
     ]
-    @turnSpeed = 0.1
+    @turnSpeed = 0.2
 
   update: (dt) ->
     if @targetAngle
@@ -314,7 +315,8 @@ class Ship extends Entity
 class PlayerShip extends Ship
   constructor: (x, y) ->
     super x, y
-    @turnSpeed = 0.05
+    @turnSpeed = 0.1
+    @shotTime = 0
   update: (dt) ->
     dx = atom.input.mouse.x - atom.width/2
     dy = atom.input.mouse.y - atom.height/2
@@ -322,12 +324,21 @@ class PlayerShip extends Ship
     if atom.input.down 'forward'
       @vx += -Math.sin(@angle) * dt * 500
       @vy += Math.cos(@angle) * dt * 500
+
+    if @shotTime > 0
+      @shotTime -= dt
+    if atom.input.down 'shoot'
+      if @shotTime <= 0
+        @shoot x:@x+dx, y: @y+dy
+        @shotTime = 0.3
     super(dt)
+  shoot: (target) ->
+    new Bullet @x, @y, target
 
 class EnemyShip extends Ship
   constructor: (x, y) ->
     super x, y
-    @turnSpeed = 0.02
+    @turnSpeed = 0.04
   update: (dt) ->
     dx = player.x - @x
     dy = player.y - @y
@@ -385,13 +396,41 @@ class Explosion extends Entity
     @gradient.destroy()
     super()
 
+class Bullet extends Entity
+  constructor: (x, y, @target) ->
+    super x, y
+    @angle = Math.atan2 @target.y-y, @target.x-x
+    @shape = new StaticShape [
+      [0,0, 1,0.57,0,1]
+      [1,0, 1,0.57,0,1]
+    ]
+  update: (dt) ->
+    dx = @target.x - @x
+    dy = @target.y - @y
+    dist = Math.sqrt dx*dx+dy*dy
+    if dist < 100*dt
+      @destroy()
+      new Explosion @x, @y
+    else
+      @vx = dx/dist*100
+      @vy = dy/dist*100
+    super dt
+  draw: ->
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    game.worldMatrix.rotate @angle
+    game.worldMatrix.scale 5, 5
+    shader.regular.setUniform 'world', game.worldMatrix.matrix
+    game.worldMatrix.pop()
+    @shape.draw()
+
 window.game = game = new SpaceGame
 
 player = new PlayerShip 0, 0
 new Box 0, 0
 new EnemyShip 100,0
 
-window.onblur = game.stop()
-window.onfocus = game.run()
+window.onblur = -> game.stop()
+window.onfocus = -> game.run()
 
 game.run()
