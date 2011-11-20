@@ -123,7 +123,6 @@ class Gradient
 
   constructor: (stops, size=256) ->
     canvas = document.createElement 'canvas'
-    document.body.appendChild canvas
     canvas.style.position = 'absolute'
     canvas.width = nextPOT size
     canvas.height = 1
@@ -142,7 +141,6 @@ class Gradient
     gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE
     gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE
     @length = size / canvas.width
-    console.log @length
   draw: (x, y, size) ->
     mat.push()
     mat.translate(x-size/2,y-size/2)
@@ -155,6 +153,8 @@ class Gradient
     gl.bindBuffer gl.ARRAY_BUFFER, vertexBuf
     gl.vertexAttribPointer shader.gradient.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
     gl.drawArrays gl.TRIANGLE_STRIP, 0, 4
+  destroy: ->
+    gl.deleteTexture @tex
 
 class SpaceGame extends atom.Game
   constructor: ->
@@ -172,12 +172,6 @@ class SpaceGame extends atom.Game
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     gl.enable gl.BLEND
     gl.blendFunc gl.SRC_ALPHA, gl.ONE
-    @g = new Gradient [
-      [0, 'rgba(190,105,90,1)']
-      [0.25, 'rgba(5,30,80,0.4)']
-      [1, 'rgba(10,0,40,0)']
-    ]
-    @g.dt = 0
 
   addEntity: (e) ->
     @entities.push e
@@ -192,14 +186,16 @@ class SpaceGame extends atom.Game
     atom.input.bind atom.key.A, 'left'
     atom.input.bind atom.key.D, 'right'
 
+    atom.input.bind atom.key.E, 'explode'
+
   update: (dt) ->
     e?.update? dt for e in @entities
     if @deadEntityIDs.length > 0
       # remove dead entities
-      @deadEntityIDs.sort_by (a, b) -> b - a
+      @deadEntityIDs.sort (a, b) -> b - a
       for id in @deadEntityIDs
         @entities.splice id, 1
-    @g.dt += dt
+      @deadEntityIDs = []
   draw: ->
     # clear new
     # draw old to new in offset pos
@@ -231,10 +227,6 @@ class SpaceGame extends atom.Game
     @worldMatrix = new MatrixStack
     @worldMatrix.translate -player.x, -player.y
     e.draw?() for e in @entities
-    d = Math.min 500, @g.dt % 1000
-    fac = 0.48 * 0.004 * Math.PI
-    size = 15 * (1 + Math.tan(d * fac))
-    @g.draw 100, 0, size
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     drawTex @frontFB.tex, 0, 0, atom.width, atom.height
     @last_draw_centre = { x:player.x, y:player.y }
@@ -326,6 +318,12 @@ class Box extends PhysicalEntity
       [-5,-5, 0,1,0,1]
     ]
 
+  update: (dt) ->
+    r = -> Math.random()*2-1
+    if atom.input.down 'explode'
+      if Math.random() < 0.08
+        new Explosion @x+r()*50, @y+r()*50
+
   draw: ->
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y
@@ -333,6 +331,28 @@ class Box extends PhysicalEntity
     shader.regular.setUniform 'world', game.worldMatrix.matrix
     game.worldMatrix.pop()
     @shape.draw()
+
+class Explosion extends PhysicalEntity
+  constructor: (x, y) ->
+    super x, y
+    @gradient = new Gradient [
+      [0, 'rgba(190,105,90,1)']
+      [0.25, 'rgba(5,30,80,0.4)']
+      [1, 'rgba(10,0,40,0)']
+    ]
+    @time = 0
+  update: (dt) ->
+    @time += dt
+    if @time > 500
+      @destroy()
+  draw: ->
+    d = Math.min 500, @time
+    fac = 0.48 * 0.004 * Math.PI
+    size = 15 * (1 + Math.tan(d * fac))
+    @gradient.draw @x-player.x, @y-player.y, size
+  destroy: ->
+    @gradient.destroy()
+    super()
 
 window.game = game = new SpaceGame
 
