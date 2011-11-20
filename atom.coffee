@@ -108,6 +108,7 @@ window.onresize()
 class Game
   constructor: ->
     @fps = 30
+    @time = 0
   update: (dt) ->
   draw: ->
   run: ->
@@ -124,7 +125,7 @@ class Game
     now = Date.now()
     dt = (now - @last_step) / 1000
     @last_step = now
-    console.log dt if dt > 0.04
+    @time += dt
     @update dt
     @draw()
     atom.input.clearPressed()

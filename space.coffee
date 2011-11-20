@@ -144,6 +144,7 @@ class Gradient
     @length = size / canvas.width
   draw: (x, y, width, height=width, angle=null) ->
     mat.push()
+    mat.matrix = game.worldMatrix.matrix
     mat.translate(x,y)
     mat.rotate angle if angle?
     mat.scale(width/2, height/2)
@@ -300,13 +301,34 @@ turnTo = (angle, targetAngle, speed) ->
 class Ship extends Entity
   constructor: (x, y) ->
     super(x, y)
+    n = 4
     @shape = new StaticShape [
-      [-10,0, 1,0,0,1]
-      [10,0,  1,0,0,1]
-      [0,20,  1,0,0,1]
-      [-10,0, 1,0,0,1]
+      [-10,-10, 1,0,0,1]
+      [-10,n,  1,0,0,1]
+      [-n,10,  1,0,0,1]
+      [n,10, 1,0,0,1]
+      [10,n, 1,0,0,1]
+      [10,-10, 1,0,0,1]
+      [-10,-10, 1,0,0,1]
+    ]
+    @blinkies = [
+      @makeBlinky 0, -13
     ]
     @turnSpeed = 0.2
+
+  makeBlinky: (x, y) ->
+    g = new Gradient [
+      [0, 'rgba(0,0,0,0)']
+      [0.15, 'rgba(90,105,190,0.2)']
+      [0.2, 'rgba(90,105,190,1)']
+      [0.4, 'rgba(80,30,190,0.4)']
+      [1, 'rgba(10,0,40,0.0)']
+    ]
+    g.x = x
+    g.y = y
+    g.dt = Math.random()
+    g.ddt = 0
+    g
 
   update: (dt) ->
     if @targetAngle
@@ -317,8 +339,14 @@ class Ship extends Entity
     game.worldMatrix.translate @x, @y
     game.worldMatrix.rotate @angle
     shader.regular.setUniform 'world', game.worldMatrix.matrix
-    game.worldMatrix.pop()
     @shape.draw()
+    for b in @blinkies
+      b.ddt += Math.random()*0.1
+      b.ddt = Math.max -0.3, Math.min 0.3, b.ddt
+      size = Math.tan((game.time+b.dt+b.ddt)*4) * 30
+      size = 0 if size < 0 or size > 160
+      b.draw b.x, b.y, size, size/3
+    game.worldMatrix.pop()
 
 class PlayerShip extends Ship
   constructor: (x, y) ->
@@ -399,7 +427,7 @@ class Explosion extends Entity
     d = Math.min 0.5, @time
     fac = 0.48 * 4 * Math.PI
     size = 15 * (1 + Math.tan(d * fac))
-    @gradient.draw @x-player.x, @y-player.y, size
+    @gradient.draw @x, @y, size
   destroy: ->
     @gradient.destroy()
     super()
@@ -429,7 +457,7 @@ class Shockwave extends Entity
     super dt
   draw: ->
     size = @size
-    @gradient.draw @x-player.x, @y-player.y, size, size/4, @angle+TAU/4
+    @gradient.draw @x, @y, size, size/4, @angle+TAU/4
 
 class Bullet extends Entity
   constructor: (x, y, @target) ->
