@@ -283,6 +283,26 @@ class Ship extends Entity
       [0,20,  1,0,0,1]
       [-10,0, 1,0,0,1]
     ]
+    @turnSpeed = 0.1
+
+  update: (dt) ->
+    if @targetAngle
+      diff = @targetAngle - @angle
+      diff -= TAU while diff > TAU/2
+      diff += TAU while diff < -TAU/2
+      if diff > 0
+        # turn ccw
+        if diff < @turnSpeed
+          @angle = @targetAngle
+        else
+          @angle += @turnSpeed
+      else
+        # turn cw
+        if -diff < @turnSpeed
+          @angle = @targetAngle
+        else
+          @angle -= @turnSpeed
+    super(dt)
   draw: ->
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y
@@ -292,31 +312,28 @@ class Ship extends Entity
     @shape.draw()
 
 class PlayerShip extends Ship
-  turn_speed = 0.1
   constructor: (x, y) ->
     super x, y
+    @turnSpeed = 0.05
   update: (dt) ->
     dx = atom.input.mouse.x - atom.width/2
     dy = atom.input.mouse.y - atom.height/2
-    targetAngle = Math.atan2(dy, dx) - TAU/4
-    diff = targetAngle - @angle
-    diff -= TAU while diff > TAU/2
-    diff += TAU while diff < -TAU/2
-    if diff > 0
-      # turn ccw
-      if diff < turn_speed
-        @angle = targetAngle
-      else
-        @angle += turn_speed
-    else
-      # turn cw
-      if -diff < turn_speed
-        @angle = targetAngle
-      else
-        @angle -= turn_speed
+    @targetAngle = Math.atan2(dy, dx) - TAU/4
     if atom.input.down 'forward'
       @vx += -Math.sin(@angle) * dt * 500
       @vy += Math.cos(@angle) * dt * 500
+    super(dt)
+
+class EnemyShip extends Ship
+  constructor: (x, y) ->
+    super x, y
+    @turnSpeed = 0.02
+  update: (dt) ->
+    dx = player.x - @x
+    dy = player.y - @y
+    @targetAngle = Math.atan2(dy, dx) - TAU/4
+    @vx += -Math.sin(@angle) * dt * 300
+    @vy += Math.cos(@angle) * dt * 300
     super(dt)
 
 class Box extends Entity
@@ -372,6 +389,7 @@ window.game = game = new SpaceGame
 
 player = new PlayerShip 0, 0
 new Box 0, 0
+new EnemyShip 100,0
 
 window.onblur = game.stop()
 window.onfocus = game.run()
