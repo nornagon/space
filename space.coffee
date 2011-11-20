@@ -299,8 +299,8 @@ class PlayerShip extends Ship
     dy = atom.input.mouse.y - atom.height/2
     @angle = Math.atan2(dy, dx) - TAU/4
     if atom.input.down 'forward'
-      @vx += -Math.sin(@angle) * dt * 0.001
-      @vy += Math.cos(@angle) * dt * 0.001
+      @vx += -Math.sin(@angle) * dt * 500
+      @vy += Math.cos(@angle) * dt * 500
     super(dt)
 
 class Box extends Entity
@@ -341,11 +341,11 @@ class Explosion extends Entity
     @time = 0
   update: (dt) ->
     @time += dt
-    if @time > 500
+    if @time > 0.5
       @destroy()
   draw: ->
-    d = Math.min 500, @time
-    fac = 0.48 * 0.004 * Math.PI
+    d = Math.min 0.5, @time
+    fac = 0.48 * 4 * Math.PI
     size = 15 * (1 + Math.tan(d * fac))
     @gradient.draw @x-player.x, @y-player.y, size
   destroy: ->
