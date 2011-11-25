@@ -2,6 +2,21 @@ TAU = Math.PI*2
 
 gl = atom.gl
 
+unionRects = (r1, r2) ->
+  {
+    x: x = Math.min r1.x, r2.x
+    y: y = Math.min r1.y, r2.y
+    w: Math.max(r1.x+(r1.w ? 0), r2.x+(r2.w ? 0)) - x
+    h: Math.max(r1.y+(r1.h ? 0), r2.y+(r2.h ? 0)) - y
+  }
+rectIntersectsRect = (r1, r2) ->
+  not (
+    r1.x+r1.w < r2.x or
+    r1.y+r1.h < r2.y or
+    r1.x > r2.x+r2.w or
+    r1.y > r2.y+r2.h
+  )
+
 nextPOT = (n) ->
   pot = 1
   while pot < n
@@ -111,6 +126,17 @@ class MatrixStack
       0,sy,0
       0,0,1
     ]
+  transformPoint: (x, y) ->
+    tx = @matrix[0]*x + @matrix[3]*y + @matrix[6]
+    ty = @matrix[1]*x + @matrix[4]*y + @matrix[7]
+    tz = @matrix[2]*x + @matrix[5]*y + @matrix[8]
+    return {x:tx/tz, y:ty/tz}
+  transformAABB: (bb) ->
+    r = @transformPoint bb.x, bb.y
+    r = unionRects r, @transformPoint bb.x+bb.w, bb.y
+    r = unionRects r, @transformPoint bb.x+bb.w, bb.y+bb.h
+    r = unionRects r, @transformPoint bb.x, bb.y+bb.h
+    r
 
 class Gradient
   shader.gradient.use()
@@ -200,6 +226,10 @@ class SpaceGame extends atom.Game
       for id in @deadEntityIDs
         @entities.splice id, 1
       @deadEntityIDs = []
+    @screen = {
+      x:-atom.width/2, y:-atom.height/2,
+      w:atom.width, h:atom.height
+    }
   draw: ->
     # clear new
     # draw old to new in offset pos
@@ -242,9 +272,11 @@ class StaticShape
   constructor: (verts) ->
     vertices = []
     colors = []
+    @bb = {x:verts[0][0],y:verts[0][1],w:0,h:0}
     for v in verts
       vertices = vertices.concat v[0..1]
       colors = colors.concat v[2..5]
+      @bb = unionRects @bb, {x:v[0], y:v[1], w:0,h:0}
     @numElements = vertices.length / 2
     @vertexBuf = gl.createBuffer()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
@@ -255,6 +287,8 @@ class StaticShape
     @lineWidth = 2
 
   draw: ->
+    unless rectIntersectsRect game.screen, t = game.worldMatrix.transformAABB @bb
+      return
     shader.regular.use()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
     gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
@@ -511,8 +545,8 @@ class Bullet extends Entity
     game.worldMatrix.rotate @angle
     game.worldMatrix.scale 10, 10
     shader.regular.setUniform 'world', game.worldMatrix.matrix
-    game.worldMatrix.pop()
     @shape.draw()
+    game.worldMatrix.pop()
 
 class Asteroid extends Entity
   constructor: (x, y) ->
@@ -536,13 +570,13 @@ class Asteroid extends Entity
     game.worldMatrix.translate @x, @y
     game.worldMatrix.rotate @angle
     shader.regular.setUniform 'world', game.worldMatrix.matrix
-    game.worldMatrix.pop()
     @shape.draw()
+    game.worldMatrix.pop()
 
 window.game = game = new SpaceGame
 
-for i in [0..10]
-  new Asteroid 1000*(2*Math.random()-1), 1000*(2*Math.random()-1)
+for i in [0..1000]
+  new Asteroid 10000*(2*Math.random()-1), 10000*(2*Math.random()-1)
 
 player = new PlayerShip 0, 0
 new Box 0, 0
