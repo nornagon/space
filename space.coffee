@@ -192,6 +192,7 @@ class SpaceGame extends atom.Game
     atom.input.bind atom.key.E, 'explode'
 
   update: (dt) ->
+    dt = 1 / 30
     e?.update? dt for e in @entities
     if @deadEntityIDs.length > 0
       # remove dead entities
@@ -428,7 +429,7 @@ class Explosion extends Entity
       [0.25, 'rgba(5,30,80,0.4)']
       [1, 'rgba(10,0,40,0)']
     ]
-    @time = 0
+    @time = Math.random()*0.01
   update: (dt) ->
     @time += dt
     if @time > 0.5
