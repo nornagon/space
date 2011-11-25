@@ -311,12 +311,10 @@ class Ship extends Entity
       [10,-10, 1,0,0,1]
       [-10,-10, 1,0,0,1]
     ]
-    @blinkies = [
-      @makeBlinky 0, -13
-    ]
+    @engine = @makeEngine()
     @turnSpeed = 0.2
 
-  makeBlinky: (x, y) ->
+  makeEngine: ->
     g = new Gradient [
       [0, 'rgba(0,0,0,0)']
       [0.15, 'rgba(90,105,190,0.2)']
@@ -324,15 +322,32 @@ class Ship extends Entity
       [0.4, 'rgba(80,30,190,0.4)']
       [1, 'rgba(10,0,40,0.0)']
     ]
-    g.x = x
-    g.y = y
-    g.dt = Math.random()
-    g.ddt = 0
+    g.is_on = no
+    g.on = ->
+      @base = game.time unless @is_on
+      @is_on = yes
+    g.off = ->
+      @is_on = no
+    g._draw = g.draw
+    g.draw = (x, y) ->
+      return unless @is_on
+      size = Math.tan((game.time - @base)*4) * 30
+      size = 0 if size < 0 or size > 160
+      @_draw x, y, size, size/3
     g
 
   update: (dt) ->
     if @targetAngle
       @angle = turnTo @angle, @targetAngle, @turnSpeed
+    @engine.ddt += Math.random()*0.1
+    @engine.ddt = Math.max -0.3, Math.min 0.3, @engine.ddt
+    @vx += @fx * dt if @fx
+    @vy += @fy * dt if @fy
+    if @fx or @fy
+      @engine.on()
+    else
+      @engine.off()
+    @fx = @fy = 0
     super(dt)
   draw: ->
     game.worldMatrix.push()
@@ -340,13 +355,9 @@ class Ship extends Entity
     game.worldMatrix.rotate @angle
     shader.regular.setUniform 'world', game.worldMatrix.matrix
     @shape.draw()
-    for b in @blinkies
-      b.ddt += Math.random()*0.1
-      b.ddt = Math.max -0.3, Math.min 0.3, b.ddt
-      size = Math.tan((game.time+b.dt+b.ddt)*4) * 30
-      size = 0 if size < 0 or size > 160
-      b.draw b.x, b.y, size, size/3
+    @engine.draw 0, -13
     game.worldMatrix.pop()
+  thrust: (@fx, @fy) ->
 
 class PlayerShip extends Ship
   constructor: (x, y) ->
@@ -358,8 +369,7 @@ class PlayerShip extends Ship
     dy = atom.input.mouse.y - atom.height/2
     @targetAngle = Math.atan2(dy, dx) - TAU/4
     if atom.input.down 'forward'
-      @vx += -Math.sin(@angle) * dt * 100
-      @vy += Math.cos(@angle) * dt * 100
+      @thrust -Math.sin(@angle) * 100, Math.cos(@angle) * 100
 
     if @shotTime > 0
       @shotTime -= dt
@@ -503,11 +513,39 @@ class Bullet extends Entity
     game.worldMatrix.pop()
     @shape.draw()
 
+class Asteroid extends Entity
+  constructor: (x, y) ->
+    super x, y
+    @shape = new StaticShape @generate_verts()
+  generate_verts: ->
+    verts = []
+    num = 10
+    size = 20+60*Math.random()
+    for i in [0..num-1]
+      phi = TAU/num*i
+      r = size + (Math.random()*2-1) * size/4
+      console.log r
+      x = r * Math.cos phi
+      y = r * Math.sin phi
+      verts.push [x, y, 0.5, 0.5, 0.5, 0.4]
+    verts.push verts[0]
+    verts
+  draw: ->
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    game.worldMatrix.rotate @angle
+    shader.regular.setUniform 'world', game.worldMatrix.matrix
+    game.worldMatrix.pop()
+    @shape.draw()
+
 window.game = game = new SpaceGame
+
+for i in [0..10]
+  new Asteroid 1000*(2*Math.random()-1), 1000*(2*Math.random()-1)
 
 player = new PlayerShip 0, 0
 new Box 0, 0
-new EnemyShip 100,0
+#new EnemyShip 100,0
 
 window.onblur = -> game.stop()
 window.onfocus = -> game.run()
