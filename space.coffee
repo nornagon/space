@@ -96,35 +96,17 @@ class Entity
     @vx *= 0.95
     @vy *= 0.95
 
-turnTo = (angle, targetAngle, speed) ->
-  diff = targetAngle - angle
-  diff -= TAU while diff > TAU/2
-  diff += TAU while diff < -TAU/2
-  if diff > 0
-    # turn ccw
-    if diff < speed
-      angle = targetAngle
-    else
-      angle += speed
-  else
-    # turn cw
-    if -diff < speed
-      angle = targetAngle
-    else
-      angle -= speed
-  angle
-
 class Ship extends Entity
   constructor: (x, y) ->
     super(x, y)
     n = 4
     @shape = new StaticShape [
       [-10,-10, 1,0,0,1]
-      [-10,n,  1,0,0,1]
-      [-n,10,  1,0,0,1]
-      [n,10, 1,0,0,1]
+      [-10,10,  1,0,0,1]
+      [n,10,  1,0,0,1]
       [10,n, 1,0,0,1]
-      [10,-10, 1,0,0,1]
+      [10,-n, 1,0,0,1]
+      [n,-10, 1,0,0,1]
       [-10,-10, 1,0,0,1]
     ]
     @engine = @makeEngine()
@@ -151,7 +133,7 @@ class Ship extends Entity
       size = 0 if size < 0 or size > 160
       game.worldMatrix.push()
       game.worldMatrix.translate x, y
-      @_draw size, size/3
+      @_draw size/3, size
       game.worldMatrix.pop()
     g
 
@@ -173,9 +155,11 @@ class Ship extends Entity
     game.worldMatrix.translate @x, @y
     game.worldMatrix.rotate @angle
     @shape.draw()
-    @engine.draw 0, -13
+    @engine.draw -13, 0
     game.worldMatrix.pop()
-  thrust: (@fx, @fy) ->
+  thrust: (fx, fy) ->
+    @fx += fx
+    @fy += fy
 
 class PlayerShip extends Ship
   constructor: (x, y) ->
@@ -185,9 +169,9 @@ class PlayerShip extends Ship
   update: (dt) ->
     dx = atom.input.mouse.x - atom.width/2
     dy = atom.input.mouse.y - atom.height/2
-    @targetAngle = Math.atan2(dy, dx) - TAU/4
+    @targetAngle = Math.atan2(dy, dx)
     if atom.input.down 'forward'
-      @thrust -Math.sin(@angle) * 100, Math.cos(@angle) * 100
+      @thrust Math.cos(@angle) * 100, Math.sin(@angle) * 100
 
     if @shotTime > 0
       @shotTime -= dt
