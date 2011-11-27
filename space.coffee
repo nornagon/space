@@ -28,11 +28,9 @@ class Gradient
     gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE
     gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE
     @length = size / canvas.width
-  draw: (x, y, width, height=width, angle=null) ->
+  draw: (width, height=width) ->
+    mat = game.worldMatrix
     mat.push()
-    mat.matrix = game.worldMatrix.matrix
-    mat.translate(x,y)
-    mat.rotate angle if angle?
     mat.scale(width/2, height/2)
     shader.gradient.setUniform 'world', mat.matrix
     mat.pop()
@@ -228,7 +226,10 @@ class Ship extends Entity
       return unless @is_on
       size = Math.tan((game.time - @base)*4) * 30
       size = 0 if size < 0 or size > 160
-      @_draw x, y, size, size/3
+      game.worldMatrix.push()
+      game.worldMatrix.translate x, y
+      @_draw size, size/3
+      game.worldMatrix.pop()
     g
 
   update: (dt) ->
@@ -330,7 +331,10 @@ class Explosion extends Entity
     d = Math.min 0.5, @time
     fac = 0.48 * 4 * Math.PI
     size = 15 * (1 + Math.tan(d * fac))
-    @gradient.draw @x, @y, size
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    @gradient.draw size
+    game.worldMatrix.pop()
   destroy: ->
     @gradient.destroy()
     super()
@@ -360,7 +364,11 @@ class Shockwave extends Entity
     super dt
   draw: ->
     size = @size
-    @gradient.draw @x, @y, size, size/4, @angle+TAU/4
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    game.worldMatrix.rotate @angle+TAU/4
+    @gradient.draw size, size/4
+    game.worldMatrix.pop()
 
 class Bullet extends Entity
   constructor: (x, y, @target) ->
