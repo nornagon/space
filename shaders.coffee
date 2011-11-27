@@ -1,3 +1,5 @@
+exports ?= window
+
 gl = atom.gl
 
 vertexShaderSource = '''
@@ -145,7 +147,7 @@ class Shader
       else
         throw "don't know how to set #{u.type}"
 
-window.shader = {
+exports.shader = shader = {
   regular: new Shader vertexShaderSource, fragmentShaderSource
   tex: new Shader texVertexSource, texFragmentSource
   gradient: new Shader gradientVertexSource, gradientFragmentSource
