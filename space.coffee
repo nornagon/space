@@ -1,48 +1,3 @@
-class Gradient
-  shader.gradient.use()
-  shader.gradient.setUniform 'gradientTex', 0
-  vertexBuf = gl.createBuffer()
-  gl.bindBuffer gl.ARRAY_BUFFER, vertexBuf
-  gl.bufferData gl.ARRAY_BUFFER, new Float32Array([-1,-1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW
-  gl.vertexAttribPointer shader.gradient.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
-
-  mat = new MatrixStack
-
-  constructor: (stops, size=256) ->
-    canvas = document.createElement 'canvas'
-    canvas.style.position = 'absolute'
-    canvas.width = nextPOT size
-    canvas.height = 1
-    ctx = canvas.getContext '2d'
-    g = ctx.createLinearGradient 0, 0, size, 0
-    for s in stops
-      g.addColorStop s[0], s[1]
-    ctx.fillStyle = g
-    ctx.fillRect 0,0,canvas.width,1
-    data = ctx.getImageData 0, 0, canvas.width, 1
-    @tex = gl.createTexture()
-    gl.bindTexture gl.TEXTURE_2D, @tex
-    gl.texImage2D gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data
-    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR
-    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR
-    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE
-    gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE
-    @length = size / canvas.width
-  draw: (width, height=width) ->
-    mat = game.worldMatrix
-    mat.push()
-    mat.scale(width/2, height/2)
-    shader.gradient.setUniform 'world', mat.matrix
-    mat.pop()
-    shader.gradient.setUniform 'length', @length
-    gl.activeTexture 0
-    gl.bindTexture gl.TEXTURE_2D, @tex
-    gl.bindBuffer gl.ARRAY_BUFFER, vertexBuf
-    gl.vertexAttribPointer shader.gradient.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
-    gl.drawArrays gl.TRIANGLE_STRIP, 0, 4
-  destroy: ->
-    gl.deleteTexture @tex
-
 class SpaceGame extends atom.Game
   constructor: ->
     super()
@@ -125,38 +80,6 @@ class SpaceGame extends atom.Game
     tmp = @backFB
     @backFB = @frontFB
     @frontFB = tmp
-
-class StaticShape
-  constructor: (verts) ->
-    vertices = []
-    colors = []
-    @bb = {x:verts[0][0],y:verts[0][1],w:0,h:0}
-    for v in verts
-      vertices = vertices.concat v[0..1]
-      colors = colors.concat v[2..5]
-      @bb = Rect.union @bb, {x:v[0], y:v[1], w:0,h:0}
-    @numElements = vertices.length / 2
-    @vertexBuf = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW
-    @colorBuf = gl.createBuffer()
-    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.bufferData gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW
-    @lineWidth = 2
-
-  draw: ->
-    unless Rect.intersects game.screen, game.worldMatrix.transformAABB @bb
-      return
-    shader.regular.setUniform 'world', game.worldMatrix.matrix
-    gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
-    gl.bindBuffer gl.ARRAY_BUFFER, @colorBuf
-    gl.vertexAttribPointer shader.regular.attribute.vertexColor.location, 4, gl.FLOAT, false, 0, 0
-    gl.lineWidth @lineWidth
-    gl.drawArrays gl.LINE_STRIP, 0, @numElements
-  destroy: ->
-    gl.deleteBuffer @vertexBuf
-    gl.deleteBuffer @colorBuf
 
 class Entity
   constructor: (@x, @y) ->
@@ -424,7 +347,6 @@ class Asteroid extends Entity
     for i in [0..num-1]
       phi = TAU/num*i
       r = size + (Math.random()*2-1) * size/4
-      console.log r
       x = r * Math.cos phi
       y = r * Math.sin phi
       verts.push [x, y, 0.5, 0.5, 0.5, 0.4]
