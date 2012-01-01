@@ -30,15 +30,18 @@ class SpaceGame extends atom.Game
 
     atom.input.bind atom.key.E, 'explode'
 
-  update: (dt) ->
-    dt = 1 / 30
-    e?.update? dt for e in @entities
+  _removeDeadEntities: ->
     if @deadEntityIDs.length > 0
       # remove dead entities
       @deadEntityIDs.sort (a, b) -> b - a
       for id in @deadEntityIDs
         @entities.splice id, 1
       @deadEntityIDs = []
+
+  update: (dt) ->
+    dt = 1 / 30
+    e?.update? dt for e in @entities
+    @_removeDeadEntities()
     @screen = {
       x:-atom.width/2, y:-atom.height/2,
       w:atom.width, h:atom.height
