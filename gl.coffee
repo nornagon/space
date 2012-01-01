@@ -11,6 +11,8 @@ exports.makeFB = makeFB = (w, h) ->
   fb.tex.maxT = h / texH
   fb.tex.width = w
   fb.tex.height = h
+  fb.tex.texW = texW
+  fb.tex.texH = texH
   gl.bindTexture gl.TEXTURE_2D, fb.tex
   gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR
   gl.texParameteri gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR
@@ -20,11 +22,14 @@ exports.makeFB = makeFB = (w, h) ->
 
 _drawTexVerts = gl.createBuffer()
 _drawTexTexCoords = gl.createBuffer()
-exports.drawTex = drawTex = (tex, x, y, w, h, multiplier = 1.0) ->
-  shader.tex.setUniform 'tex', 0
-  shader.tex.setUniform 'mult', multiplier
-  gl.bindTexture gl.TEXTURE_2D, tex
+exports.drawTex = drawTex = (tex, x, y, w, h, multiplier = 1.0, prog = shader.tex) ->
+  prog.setUniform 'tex', 0
+  if prog == shader.fxaa
+    prog.setUniform 'inverse_buffer_size', 1/tex.texW, 1/tex.texH
+  else if prog == shader.tex
+    prog.setUniform 'mult', multiplier
   gl.activeTexture gl.TEXTURE0
+  gl.bindTexture gl.TEXTURE_2D, tex
   vs = [-1+2*x/atom.width,     1-2*y/atom.height     # tl
         -1+2*x/atom.width,     1-2*(y+h)/atom.height # bl
         -1+2*(x+w)/atom.width, 1-2*y/atom.height     # tr
@@ -32,10 +37,10 @@ exports.drawTex = drawTex = (tex, x, y, w, h, multiplier = 1.0) ->
   tcs = [0,tex.maxT, 0,0, tex.maxS,tex.maxT, tex.maxS,0]
   gl.bindBuffer gl.ARRAY_BUFFER, _drawTexVerts
   gl.bufferData gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW
-  gl.vertexAttribPointer shader.tex.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
+  gl.vertexAttribPointer prog.attribute.vertexPosition.location, 2, gl.FLOAT, false, 0, 0
   gl.bindBuffer gl.ARRAY_BUFFER, _drawTexTexCoords
   gl.bufferData gl.ARRAY_BUFFER, new Float32Array(tcs), gl.STATIC_DRAW
-  gl.vertexAttribPointer shader.tex.attribute.vertexTexCoord.location, 2, gl.FLOAT, false, 0, 0
+  gl.vertexAttribPointer prog.attribute.vertexTexCoord.location, 2, gl.FLOAT, false, 0, 0
   gl.drawArrays gl.TRIANGLE_STRIP, 0, 4
 
 _drawRectVertexBuf = gl.createBuffer()

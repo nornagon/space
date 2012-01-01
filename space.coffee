@@ -75,7 +75,7 @@ class SpaceGame extends atom.Game
     @worldMatrix.translate -player.x, -player.y
     e.draw?() for e in @entities
     gl.bindFramebuffer gl.FRAMEBUFFER, null
-    drawTex @frontFB.tex, 0, 0, atom.width, atom.height, 1.0
+    drawTex @frontFB.tex, 0, 0, atom.width, atom.height, 1.0#, shader.fxaa
     @last_draw_centre = { x:player.x, y:player.y }
     tmp = @backFB
     @backFB = @frontFB
