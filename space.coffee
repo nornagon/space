@@ -172,6 +172,13 @@ class PlayerShip extends Ship
     @targetAngle = Math.atan2(dy, dx)
     if atom.input.down 'forward'
       @thrust Math.cos(@angle) * 100, Math.sin(@angle) * 100
+    s = 70
+    if atom.input.down 'back'
+      @thrust Math.cos(@angle + TAU/2) * s, Math.sin(@angle + TAU/2) * s
+    if atom.input.down 'right'
+      @thrust Math.cos(@angle + TAU/4) * s, Math.sin(@angle + TAU/4) * s
+    if atom.input.down 'left'
+      @thrust Math.cos(@angle - TAU/4) * s, Math.sin(@angle - TAU/4) * s
 
     if @shotTime > 0
       @shotTime -= dt
