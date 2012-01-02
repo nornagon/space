@@ -249,9 +249,9 @@ var Vect = exports.Vect = function(x, y)
 //	traces[s] = traces[s] ? traces[s]+1 : 1;
 };
 
-exports.v = {};
+exports.v = function (x,y) { return new Vect(x, y) };
 
-var vzero = new Vect(0,0);
+var vzero = exports.vzero = new Vect(0,0);
 
 // The functions below *could* be rewritten to be instance methods on Vect. I don't
 // know how that would effect performance. For now, I'm keeping the JS similar to
@@ -593,22 +593,22 @@ var bbMergedArea2 = function(bb, l, b, r, t)
 var bbSegmentQuery = function(bb, a, b)
 {
 	var idx = 1/(b.x - a.x);
-	var tx1 = (bb.l == a.x ? -Infinity : (bb.l - a.x)*idx);
-	var tx2 = (bb.r == a.x ?	Infinity : (bb.r - a.x)*idx);
+	var tx1 = (bb.bb_l == a.x ? -Infinity : (bb.bb_l - a.x)*idx);
+	var tx2 = (bb.bb_r == a.x ?  Infinity : (bb.bb_r - a.x)*idx);
 	var txmin = min(tx1, tx2);
 	var txmax = max(tx1, tx2);
 	
 	var idy = 1/(b.y - a.y);
-	var ty1 = (bb.b == a.y ? -Infinity : (bb.b - a.y)*idy);
-	var ty2 = (bb.t == a.y ?	Infinity : (bb.t - a.y)*idy);
+	var ty1 = (bb.bb_b == a.y ? -Infinity : (bb.bb_b - a.y)*idy);
+	var ty2 = (bb.bb_t == a.y ?  Infinity : (bb.bb_t - a.y)*idy);
 	var tymin = min(ty1, ty2);
 	var tymax = max(ty1, ty2);
 	
 	if(tymin <= txmax && txmin <= tymax){
-		var min = max(txmin, tymin);
-		var max = min(txmax, tymax);
+		var min_ = max(txmin, tymin);
+		var max_ = min(txmax, tymax);
 		
-		if(0.0 <= max && min <= 1.0) return max(min, 0.0);
+		if(0.0 <= max_ && min_ <= 1.0) return max(min_, 0.0);
 	}
 	
 	return Infinity;
@@ -1226,9 +1226,9 @@ PolyShape.prototype.segmentQuery = function(a, b)
 		
 		var point = vlerp(a, b, t);
 		var dt = -vcross(n, point);
-		var dtMin = -vcross2(n.x, n.y, verts[i], verts[i+1]);
-		var dtMax = -vcross2(n.x, n.y, verts[(i+2)%len], verts[(i+3)%len]);
-		
+		var dtMin = -vcross2(n.x, n.y, verts[i*2], verts[i*2+1]);
+		var dtMax = -vcross2(n.x, n.y, verts[(i*2+2)%len], verts[(i*2+3)%len]);
+
 		if(dtMin <= dt && dt <= dtMax){
 			// josephg: In the original C code, this function keeps
 			// looping through axes after finding a match. I *think*
@@ -2053,6 +2053,9 @@ var bbProximity = function(a, b)
 
 var subtreeInsert = function(subtree, leaf, tree)
 {
+//	var s = new Error().stack;
+//	traces[s] = traces[s] ? traces[s]+1 : 1;
+
 	if(subtree == null){
 		return leaf;
 	} else if(subtree.isLeaf){
@@ -2100,45 +2103,20 @@ var subtreeQuery = function(subtree, bb, func)
 	}
 };
 
-/// Returns the fraction along the segment query the cpBB is hit. Returns Infinity if it doesn't hit.
-var bbTreeSegmentQuery = function(node, a, b)
-{
-	var idx = 1/(b.x - a.x);
-	var tx1 = (node.bb_l == a.x ? -Infinity : (node.bb_l - a.x)*idx);
-	var tx2 = (node.bb_r == a.x ?	Infinity : (node.bb_r - a.x)*idx);
-	var txmin = min(tx1, tx2);
-	var txmax = max(tx1, tx2);
-	
-	var idy = 1/(b.y - a.y);
-	var ty1 = (node.bb_b == a.y ? -Infinity : (node.bb_b - a.y)*idy);
-	var ty2 = (node.bb_t == a.y ?	Infinity : (node.bb_t - a.y)*idy);
-	var tymin = min(ty1, ty2);
-	var tymax = max(ty1, ty2);
-	
-	if(tymin <= txmax && txmin <= tymax){
-		var min = max(txmin, tymin);
-		var max = min(txmax, tymax);
-		
-		if(0.0 <= max && min <= 1.0) return max(min, 0.0);
-	}
-	
-	return Infinity;
-};
-
 var subtreeSegmentQuery = function(subtree, a, b, t_exit, func)
 {
 	if(subtree.isLeaf){
 		return func(subtree.obj);
 	} else {
-		var t_a = bbTreeSegmentQuery(subtree.A, a, b);
-		var t_b = bbTreeSegmentQuery(subtree.B, a, b);
+		var t_a = bbSegmentQuery(subtree.A, a, b);
+		var t_b = bbSegmentQuery(subtree.B, a, b);
 		
 		if(t_a < t_b){
-			if(t_a < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.A, a, b, t_exit, func, data));
-			if(t_b < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.B, a, b, t_exit, func, data));
+			if(t_a < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.A, a, b, t_exit, func));
+			if(t_b < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.B, a, b, t_exit, func));
 		} else {
-			if(t_b < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.B, a, b, t_exit, func, data));
-			if(t_a < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.A, a, b, t_exit, func, data));
+			if(t_b < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.B, a, b, t_exit, func));
+			if(t_a < t_exit) t_exit = min(t_exit, subtreeSegmentQuery(subtree.A, a, b, t_exit, func));
 		}
 		
 		return t_exit;
@@ -2363,7 +2341,7 @@ BBTree.prototype.pointQuery = function(point, func)
 
 BBTree.prototype.segmentQuery = function(a, b, t_exit, func)
 {
-	if(this.root) subtreeSegmentQuery(this, a, b, t_exit, func);
+	if(this.root) subtreeSegmentQuery(this.root, a, b, t_exit, func);
 };
 
 BBTree.prototype.query = function(bb, func)
@@ -4223,7 +4201,7 @@ Space.prototype.segmentQuery = function(start, end, layers, group, func)
 /// Perform a directed line segment query (like a raycast) against the space and return the first shape hit. Returns null if no shapes were hit.
 Space.prototype.segmentQueryFirst = function(start, end, layers, group)
 {
-	var out = null;
+	var out = new SegmentQueryInfo(null, 1, vzero);
 
 	var helper = function(shape){
 		var info;

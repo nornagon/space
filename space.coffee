@@ -135,11 +135,11 @@ class ShapeEntity extends Entity
     super()
     area = 1#cp.areaForPoly verts
     mass = area * density
-    moment = cp.momentForPoly mass, vs, new cp.Vect(0,0)
+    moment = cp.momentForPoly mass, vs, cp.vzero
     @body = new cp.Body mass, moment
     @body.velocity_func = updateVelocityFriction
     game.space.addBody @body
-    @cpshape = new cp.PolyShape @body, vs, new cp.Vect(0,0)
+    @cpshape = new cp.PolyShape @body, vs, cp.vzero
     game.space.addShape @cpshape
   onDestroy: ->
     game.space.removeBody @body
@@ -200,7 +200,7 @@ class Ship extends ShapeEntity
     @body.resetForces()
     if @fx or @fy
       @engine.on()
-      @body.applyForce new cp.Vect(@fx, @fy), new cp.Vect(0, 0)
+      @body.applyForce new cp.Vect(@fx, @fy), cp.vzero
     else
       @engine.off()
     @fx = @fy = 0
