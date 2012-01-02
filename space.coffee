@@ -253,9 +253,9 @@ class EnemyShip extends Ship
   update: (dt) ->
     dx = player.body.p.x - @body.p.x
     dy = player.body.p.y - @body.p.y
-    @targetAngle = Math.atan2(dy, dx) - TAU/4
-    vx = -Math.sin(@body.a) * 50
-    vy = Math.cos(@body.a) * 50
+    @targetAngle = Math.atan2(dy, dx)
+    vx = Math.cos(@body.a) * 50
+    vy = Math.sin(@body.a) * 50
     @thrust vx, vy
     super(dt)
 
