@@ -5,6 +5,8 @@ class SpaceGame extends atom.Game
     @entities = []
     @deadEntityIDs = []
 
+    @space = new cp.Space
+
     @frontFB = makeFB atom.width, atom.height
     gl.clearColor 0, 0, 0, 1
     gl.clear gl.COLOR_BUFFER_BIT
@@ -35,11 +37,13 @@ class SpaceGame extends atom.Game
       # remove dead entities
       @deadEntityIDs.sort (a, b) -> b - a
       for id in @deadEntityIDs
+        @entities[id].onDestroy?()
         @entities.splice id, 1
       @deadEntityIDs = []
 
   update: (dt) ->
     dt = 1 / 30
+    @space.step dt
     e?.update? dt for e in @entities
     @_removeDeadEntities()
     @screen = {
@@ -56,8 +60,8 @@ class SpaceGame extends atom.Game
     gl.clearColor 0, 0, 0, 1
     gl.clear gl.COLOR_BUFFER_BIT
     if @last_draw_centre
-      dx = @last_draw_centre.x - player.x
-      dy = @last_draw_centre.y - player.y
+      dx = @last_draw_centre.x - player.body.p.x
+      dy = @last_draw_centre.y - player.body.p.y
       drawTex @backFB.tex, dx, dy, atom.width, atom.height, 0.8
     # TODO: darken
     w = 2 / atom.canvas.width
@@ -75,35 +79,83 @@ class SpaceGame extends atom.Game
       0, 0, 0, 1
     ]
     @worldMatrix = new MatrixStack
-    @worldMatrix.translate -player.x, -player.y
+    @worldMatrix.translate -player.body.p.x, -player.body.p.y
     e.draw?() for e in @entities
     gl.bindFramebuffer gl.FRAMEBUFFER, null
     drawTex @frontFB.tex, 0, 0, atom.width, atom.height, 1.0#, shader.fxaa
-    @last_draw_centre = { x:player.x, y:player.y }
+    @last_draw_centre = { x:player.body.p.x, y:player.body.p.y }
     tmp = @backFB
     @backFB = @frontFB
     @frontFB = tmp
 
 class Entity
-  constructor: (@x, @y) ->
+  constructor: ->
     game.addEntity this
-    @vx = @vy = 0
-    @angle ?= 0
 
   destroy: ->
     game.removeEntity this
 
-  update: (dt) ->
-    @x += @vx * dt
-    @y += @vy * dt
-    @vx *= 0.95
-    @vy *= 0.95
+  update: ->
+  draw: ->
 
-class Ship extends Entity
+clamp = (f, minv, maxv) -> Math.min(Math.max(f, minv), maxv)
+updateVelocityFriction = (gravity, damping, dt) ->
+  # drag
+  b = 0.8
+  fdx = -b * @vx
+  fdy = -b * @vy
+  vx = @vx * damping + (gravity.x + (fdx + @f.x) * @m_inv) * dt
+  vy = @vy * damping + (gravity.y + (fdy + @f.y) * @m_inv) * dt
+
+  v_limit = @v_limit
+  lensq = vx * vx + vy * vy
+  scale = if lensq > v_limit*v_limit then v_limit / Math.sqrt(len) else 1
+  @vx = vx * scale
+  @vy = vy * scale
+  
+  w_limit = @w_limit
+  @w = clamp(@w*damping + @t*@i_inv*dt, -w_limit, w_limit)
+  
+  @sanityCheck()
+
+class StaticShapeEntity extends Entity
+  constructor: (vs, x, y) ->
+    super()
+    polys = convexicatePolygon(vs)
+    @shapes = []
+    for p in polys
+      @shapes.push new cp.PolyShape game.space.staticBody, p, new cp.Vect(x,y)
+      game.space.addShape @shapes[@shapes.length-1]
+  onDestroy: ->
+    for s in @shapes
+      game.space.removeShape s
+
+class ShapeEntity extends Entity
+  constructor: (vs, density = 1) ->
+    super()
+    area = 1#cp.areaForPoly verts
+    mass = area * density
+    moment = cp.momentForPoly mass, vs, new cp.Vect(0,0)
+    @body = new cp.Body mass, moment
+    @body.velocity_func = updateVelocityFriction
+    game.space.addBody @body
+    @cpshape = new cp.PolyShape @body, vs, new cp.Vect(0,0)
+    game.space.addShape @cpshape
+  onDestroy: ->
+    game.space.removeBody @body
+    game.space.removeShape @cpshape
+
+class Ship extends ShapeEntity
   constructor: (x, y) ->
-    super(x, y)
+    @shape = @makeShape()
+    super @shape.vertices
+    @body.setPos new cp.Vect x, y
+    @engine = @makeEngine()
+    @turnSpeed = 0.2
+
+  makeShape: ->
     n = 4
-    @shape = new StaticShape [
+    new StaticShape [
       [-10,-10, 1,0,0,1]
       [-10,10,  1,0,0,1]
       [n,10,  1,0,0,1]
@@ -112,9 +164,6 @@ class Ship extends Entity
       [n,-10, 1,0,0,1]
       [-10,-10, 1,0,0,1]
     ]
-    @engine = @makeEngine()
-    @turnSpeed = 0.2
-
   makeEngine: ->
     g = new Gradient [
       [0, 'rgba(0,0,0,0)']
@@ -142,21 +191,24 @@ class Ship extends Entity
 
   update: (dt) ->
     if @targetAngle
-      @angle = turnTo @angle, @targetAngle, @turnSpeed
+      a = turnTo @body.a, @targetAngle, @turnSpeed
+      @body.w = (a - @body.a) / dt
+    else
+      @body.w = 0
     @engine.ddt += Math.random()*0.1
     @engine.ddt = Math.max -0.3, Math.min 0.3, @engine.ddt
-    @vx += @fx * dt if @fx
-    @vy += @fy * dt if @fy
+    @body.resetForces()
     if @fx or @fy
       @engine.on()
+      @body.applyForce new cp.Vect(@fx, @fy), new cp.Vect(0, 0)
     else
       @engine.off()
     @fx = @fy = 0
     super(dt)
   draw: ->
     game.worldMatrix.push()
-    game.worldMatrix.translate @x, @y
-    game.worldMatrix.rotate @angle
+    game.worldMatrix.translate @body.p.x, @body.p.y
+    game.worldMatrix.rotate @body.a
     @shape.draw()
     @engine.draw -13, 0
     game.worldMatrix.pop()
@@ -173,15 +225,16 @@ class PlayerShip extends Ship
     dx = atom.input.mouse.x - atom.width/2
     dy = atom.input.mouse.y - atom.height/2
     @targetAngle = Math.atan2(dy, dx)
+    s = 100
     if atom.input.down 'forward'
-      @thrust Math.cos(@angle) * 100, Math.sin(@angle) * 100
-    s = 70
+      @thrust Math.cos(@body.a) * s, Math.sin(@body.a) * s
+    ts = s * 0.7
     if atom.input.down 'back'
-      @thrust Math.cos(@angle + TAU/2) * s, Math.sin(@angle + TAU/2) * s
+      @thrust Math.cos(@body.a + TAU/2) * ts, Math.sin(@body.a + TAU/2) * ts
     if atom.input.down 'right'
-      @thrust Math.cos(@angle + TAU/4) * s, Math.sin(@angle + TAU/4) * s
+      @thrust Math.cos(@body.a + TAU/4) * ts, Math.sin(@body.a + TAU/4) * ts
     if atom.input.down 'left'
-      @thrust Math.cos(@angle - TAU/4) * s, Math.sin(@angle - TAU/4) * s
+      @thrust Math.cos(@body.a - TAU/4) * ts, Math.sin(@body.a - TAU/4) * ts
 
     if @shotTime > 0
       @shotTime -= dt
@@ -201,8 +254,8 @@ class EnemyShip extends Ship
     dx = player.x - @x
     dy = player.y - @y
     @targetAngle = Math.atan2(dy, dx) - TAU/4
-    @vx += -Math.sin(@angle) * dt * 50
-    @vy += Math.cos(@angle) * dt * 50
+    @vx += -Math.sin(@body.a) * dt * 50
+    @vy += Math.cos(@body.a) * dt * 50
     super(dt)
 
 class Box extends Entity
@@ -330,16 +383,16 @@ class Bullet extends Entity
     @shape.draw()
     game.worldMatrix.pop()
 
-class Asteroid extends Entity
-  constructor: (x, y) ->
-    super x, y
+class Asteroid extends StaticShapeEntity
+  constructor: (@x, @y) ->
     @shape = new StaticShape @generate_verts()
+    super(@shape.vertices, @x, @y)
   generate_verts: ->
     verts = []
     num = 10
     size = 20+60*Math.random()
     for i in [0..num-1]
-      phi = TAU/num*i
+      phi = -TAU/num*i
       r = size + (Math.random()*2-1) * size/4
       x = r * Math.cos phi
       y = r * Math.sin phi
@@ -349,7 +402,6 @@ class Asteroid extends Entity
   draw: ->
     game.worldMatrix.push()
     game.worldMatrix.translate @x, @y
-    game.worldMatrix.rotate @angle
     @shape.draw()
     game.worldMatrix.pop()
 
@@ -359,7 +411,7 @@ for i in [0..1000]
   new Asteroid 10000*(2*Math.random()-1), 10000*(2*Math.random()-1)
 
 player = new PlayerShip 0, 0
-new Box 0, 0
+#new Box 0, 0
 #new EnemyShip 100,0
 
 window.onblur = -> game.stop()

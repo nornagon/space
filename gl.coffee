@@ -124,6 +124,8 @@ exports.StaticShape = class StaticShape
       vertices = vertices.concat v[0..1]
       colors = colors.concat v[2..5]
       @bb = Rect.union @bb, {x:v[0], y:v[1], w:0,h:0}
+    @vertices = vertices
+    @colors = colors
     @numElements = vertices.length / 2
     @vertexBuf = gl.createBuffer()
     gl.bindBuffer gl.ARRAY_BUFFER, @vertexBuf
