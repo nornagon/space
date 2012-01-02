@@ -244,18 +244,19 @@ class PlayerShip extends Ship
         @shotTime = Math.random() * 0.1
     super(dt)
   shoot: (target) ->
-    new Bullet this, @body.p.x, @body.p.y, target
+    new Missile this, @body.p.x, @body.p.y, {body:{p:target}}
 
 class EnemyShip extends Ship
   constructor: (x, y) ->
     super x, y
     @turnSpeed = 0.04
   update: (dt) ->
-    dx = player.x - @x
-    dy = player.y - @y
+    dx = player.body.p.x - @body.p.x
+    dy = player.body.p.y - @body.p.y
     @targetAngle = Math.atan2(dy, dx) - TAU/4
-    @vx += -Math.sin(@body.a) * dt * 50
-    @vy += Math.cos(@body.a) * dt * 50
+    vx = -Math.sin(@body.a) * 50
+    vy = Math.cos(@body.a) * 50
+    @thrust vx, vy
     super(dt)
 
 class Box extends Entity
@@ -341,6 +342,56 @@ class Shockwave extends Entity
     @gradient.draw size, size/4
     game.worldMatrix.pop()
 
+class Missile extends Entity
+  constructor: (@source, @x, @y, @target) ->
+    super()
+    @angle = @source.body.a
+    @turnSpeed = 0.08
+    @shape = new StaticShape [
+      [-0.5,0, 1,0.57,0,1]
+      [0.5,0, 1,0.57,0,1]
+    ]
+    @shape.lineWidth = 2
+    @life = 4
+
+  update: (dt) ->
+    dx = @target.body.p.x - @x
+    dy = @target.body.p.y - @y
+    targetAngle = Math.atan2 dy, dx
+    @angle = turnTo @angle, targetAngle, @turnSpeed
+    @life -= dt
+    if @life < 0
+      @explode()
+    else
+      c = Math.cos @angle
+      s = Math.sin @angle
+      vel = Math.min 300, (4-@life)*300
+      dx = c*vel*dt
+      dy = s*vel*dt
+      d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx*2,@y+dy*2), ~0, 0
+      if d.shape and d.shape != @source.shape
+        @x += dx*d.t
+        @y += dy*d.t
+        @explode()
+      else
+        @x += dx
+        @y += dy
+
+  destroy: ->
+    @shape.destroy()
+    super()
+  explode: ->
+    @destroy()
+    new Shockwave @x, @y, @angle
+
+  draw: ->
+    game.worldMatrix.push()
+    game.worldMatrix.translate @x, @y
+    game.worldMatrix.rotate @angle
+    game.worldMatrix.scale 10, 10
+    @shape.draw()
+    game.worldMatrix.pop()
+
 class Bullet extends Entity
   constructor: (@source, @x, @y, @target) ->
     super()
@@ -420,7 +471,7 @@ for i in [0..1000]
 
 player = new PlayerShip 0, 0
 #new Box 0, 0
-#new EnemyShip 100,0
+new EnemyShip 100,0
 
 window.onblur = -> game.stop()
 window.onfocus = -> game.run()
