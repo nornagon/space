@@ -240,11 +240,11 @@ class PlayerShip extends Ship
       @shotTime -= dt
     if atom.input.down 'shoot'
       if @shotTime <= 0
-        @shoot x:@x+dx, y: @y+dy
+        @shoot x:@body.p.x+dx, y: @body.p.y+dy
         @shotTime = Math.random() * 0.1
     super(dt)
   shoot: (target) ->
-    new Bullet @x, @y, target
+    new Bullet this, @body.p.x, @body.p.y, target
 
 class EnemyShip extends Ship
   constructor: (x, y) ->
@@ -285,8 +285,8 @@ class Box extends Entity
     game.worldMatrix.pop()
 
 class Explosion extends Entity
-  constructor: (x, y) ->
-    super x, y
+  constructor: (@x, @y) ->
+    super()
     @gradient = new Gradient [
       [0, 'rgba(190,105,90,1)']
       [0.25, 'rgba(5,30,80,0.4)']
@@ -310,8 +310,8 @@ class Explosion extends Entity
     super()
 
 class Shockwave extends Entity
-  constructor: (x, y, @angle) ->
-    super x, y
+  constructor: (@x, @y, @angle) ->
+    super()
     @gradient = new Gradient [
       [0, 'rgba(212,103,113,0.025)']
       [0.6, 'rgba(212,103,113,0.035)']
@@ -329,9 +329,8 @@ class Shockwave extends Entity
       @destroy()
     c = Math.cos @angle
     s = Math.sin @angle
-    @vx = c*30
-    @vy = s*30
-    super dt
+    @x += c*30*dt
+    @y += s*30*dt
   draw: ->
     size = @size
     game.worldMatrix.push()
@@ -341,8 +340,8 @@ class Shockwave extends Entity
     game.worldMatrix.pop()
 
 class Bullet extends Entity
-  constructor: (x, y, @target) ->
-    super x, y
+  constructor: (@source, @x, @y, @target) ->
+    super()
     @angle = Math.atan2 @target.y-y, @target.x-x
     @angle += TAU/4 * if Math.random() < 0.5 then -1 else 1
     @turnSpeed = 0.15 + Math.random() * 0.15
@@ -364,9 +363,16 @@ class Bullet extends Entity
     else
       c = Math.cos @angle
       s = Math.sin @angle
-      @vx = c*200
-      @vy = s*200
-    super dt
+      dx = c*200*dt
+      dy = s*200*dt
+      d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx,@y+dy), ~0, 0
+      if d.shape and d.shape != @source.shape
+        @explode()
+        #@x += dx*d.t
+        #@y += dy*d.t
+      else
+        @x += dx
+        @y += dy
 
   destroy: ->
     @shape.destroy()
