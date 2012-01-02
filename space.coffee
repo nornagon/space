@@ -311,6 +311,8 @@ class Explosion extends Entity
 
 class Shockwave extends Entity
   constructor: (@x, @y, @angle) ->
+    @orig_x = @x
+    @orig_y = @y
     super()
     @gradient = new Gradient [
       [0, 'rgba(212,103,113,0.025)']
@@ -321,7 +323,7 @@ class Shockwave extends Entity
     @size = 30
   destroy: ->
     @gradient.destroy()
-    new Explosion @x, @y
+    new Explosion @orig_x, @orig_y
     super()
   update: (dt) ->
     @size += dt * 60
@@ -367,9 +369,9 @@ class Bullet extends Entity
       dy = s*200*dt
       d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx,@y+dy), ~0, 0
       if d.shape and d.shape != @source.shape
+        @x += dx*d.t
+        @y += dy*d.t
         @explode()
-        #@x += dx*d.t
-        #@y += dy*d.t
       else
         @x += dx
         @y += dy
