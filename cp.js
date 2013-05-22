@@ -506,7 +506,7 @@ var vstr = exports.v.str = function(v)
 var numBB = 0;
 
 // Bounding boxes are JS objects with {l, b, r, t} = left, bottom, right, top, respectively.
-var BB = function(l, b, r, t)
+var BB = exports.BB = function(l, b, r, t)
 {
 	this.l = l;
 	this.b = b;
@@ -2085,9 +2085,9 @@ var subtreeInsert = function(subtree, leaf, tree)
 	}
 };
 
-Node.prototype.intersectsBB = Leaf.prototype.intersectsBB = function(node, bb)
+Node.prototype.intersectsBB = Leaf.prototype.intersectsBB = function(bb)
 {
-	return (node.bb_l <= bb.r && bb.l <= node.bb_r && node.bb_b <= bb.t && bb.b <= node.bb_t);
+	return (this.bb_l <= bb.r && bb.l <= this.bb_r && this.bb_b <= bb.t && bb.b <= this.bb_t);
 };
 
 var subtreeQuery = function(subtree, bb, func)

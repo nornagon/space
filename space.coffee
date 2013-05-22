@@ -137,6 +137,7 @@ class ShapeEntity extends Entity
     mass = area * density
     moment = cp.momentForPoly mass, vs, cp.vzero
     @body = new cp.Body mass, moment
+    @body.entity = this
     @body.velocity_func = updateVelocityFriction
     game.space.addBody @body
     @cpshape = new cp.PolyShape @body, vs, cp.vzero
@@ -240,11 +241,19 @@ class PlayerShip extends Ship
       @shotTime -= dt
     if atom.input.down 'shoot'
       if @shotTime <= 0
-        @shoot x:@body.p.x+dx, y: @body.p.y+dy
+        x = @body.p.x + dx
+        y = @body.p.y + dy
+        r = 100
+        target = undefined
+        game.space.bbQuery new cp.BB(x-r,y-r,x+r,y+r), ~0, 0, (shape) ->
+          if shape.body.entity and shape.body.entity instanceof ShapeEntity and shape.body.entity isnt this
+            target = shape.body.entity
+        target ?= {body:p:{x,y}}
+        @shoot target
         @shotTime = Math.random() * 0.1
     super(dt)
   shoot: (target) ->
-    new Missile this, @body.p.x, @body.p.y, {body:{p:target}}
+    new Missile this, @body.p.x, @body.p.y, target
 
 class EnemyShip extends Ship
   constructor: (x, y) ->
@@ -348,8 +357,8 @@ class Missile extends Entity
     @angle = @source.body.a
     @turnSpeed = 0.08
     @shape = new StaticShape [
-      [-0.5,0, 1,0.57,0,1]
-      [0.5,0, 1,0.57,0,1]
+      [-0.5,0, 0,0.57,1,1]
+      [0.5,0, 0,0.2,0.6,1]
     ]
     @shape.lineWidth = 2
     @life = 4
