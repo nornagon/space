@@ -377,10 +377,10 @@ class Missile extends Entity
       vel = Math.min 300, (4-@life)*300
       dx = c*vel*dt
       dy = s*vel*dt
-      d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx*2,@y+dy*2), ~0, 0
-      if d.shape and d.shape != @source.shape
-        @x += dx*d.t
-        @y += dy*d.t
+      d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx*2,@y+dy*2), cp.ALL_LAYERS, cp.NO_GROUP
+      if d and d.shape != @source.shape
+        @x += dx*d.t * 2
+        @y += dy*d.t * 2
         @explode()
       else
         @x += dx
@@ -427,8 +427,8 @@ class Bullet extends Entity
       s = Math.sin @angle
       dx = c*200*dt
       dy = s*200*dt
-      d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx,@y+dy), ~0, 0
-      if d.shape and d.shape != @source.shape
+      d = game.space.segmentQueryFirst cp.v(@x, @y), cp.v(@x+dx,@y+dy), cp.ALL_LAYERS, cp.NO_GROUP
+      if d and d.shape != @source.shape
         @x += dx*d.t
         @y += dy*d.t
         @explode()
